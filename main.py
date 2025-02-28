@@ -37,6 +37,11 @@ class Stock(BaseModel):
     quantity: int
     price_per_unit: float
 
+class Client(BaseModel):
+    name: str
+    email: str
+    phone: str
+
 # Create tables
 def init_db():
     conn = get_db()
@@ -64,6 +69,14 @@ def init_db():
             product_name TEXT NOT NULL,
             quantity INTEGER NOT NULL,
             price_per_unit REAL NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            phone TEXT NOT NULL
         )
     ''')
     conn.commit()
@@ -130,6 +143,26 @@ def get_stock():
     cursor.execute('SELECT * FROM stock')
     stock = cursor.fetchall()
     return {"stock": stock}
+
+# Client endpoints
+@app.post("/clients/")
+def add_client(client: Client):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO clients (name, email, phone)
+        VALUES (?, ?, ?)
+    ''', (client.name, client.email, client.phone))
+    conn.commit()
+    return {"message": "Client added successfully"}
+
+@app.get("/clients/")
+def get_clients():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM clients')
+    clients = cursor.fetchall()
+    return {"clients": clients}
 
 # Run the application
 if __name__ == "__main__":
