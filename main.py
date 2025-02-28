@@ -1,23 +1,25 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import sqlite3
+import os
+import psycopg2
 
 app = FastAPI()
 
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Database connection
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://itech_l1q2_user:AoqQkrtzrQW7WEDOJdh0C6hhlY5Xe3sv@dpg-cuvnsbggph6c73ev87g0-a/itech_l1q2")
+
 def get_db():
-    conn = sqlite3.connect('itech.db')
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 # Pydantic models
@@ -42,13 +44,13 @@ class Client(BaseModel):
     email: str
     phone: str
 
-# Create tables
+# Create tables in PostgreSQL
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             type TEXT NOT NULL,
             buying_price REAL NOT NULL,
@@ -57,7 +59,7 @@ def init_db():
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS services (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT NOT NULL,
             price REAL NOT NULL
@@ -65,7 +67,7 @@ def init_db():
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             product_name TEXT NOT NULL,
             quantity INTEGER NOT NULL,
             price_per_unit REAL NOT NULL
@@ -73,15 +75,16 @@ def init_db():
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
             phone TEXT NOT NULL
         )
     ''')
     conn.commit()
+    conn.close()
 
-# Initialize the database
+# Initialize database
 init_db()
 
 # Product endpoints
@@ -91,9 +94,10 @@ def add_product(product: Product):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO products (name, type, buying_price, selling_price)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s)
     ''', (product.name, product.type, product.buying_price, product.selling_price))
     conn.commit()
+    conn.close()
     return {"message": "Product added successfully"}
 
 @app.get("/products/")
@@ -102,7 +106,8 @@ def get_products():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM products')
     products = cursor.fetchall()
-    return {"products": products}
+    conn.close()
+    return {"products": [dict(zip([col[0] for col in cursor.description], row)) for row in products]}
 
 # Service endpoints
 @app.post("/services/")
@@ -111,9 +116,10 @@ def add_service(service: Service):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO services (name, description, price)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (service.name, service.description, service.price))
     conn.commit()
+    conn.close()
     return {"message": "Service added successfully"}
 
 @app.get("/services/")
@@ -122,7 +128,8 @@ def get_services():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM services')
     services = cursor.fetchall()
-    return {"services": services}
+    conn.close()
+    return {"services": [dict(zip([col[0] for col in cursor.description], row)) for row in services]}
 
 # Stock endpoints
 @app.post("/stock/")
@@ -131,9 +138,10 @@ def add_stock(stock: Stock):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO stock (product_name, quantity, price_per_unit)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (stock.product_name, stock.quantity, stock.price_per_unit))
     conn.commit()
+    conn.close()
     return {"message": "Stock added successfully"}
 
 @app.get("/stock/")
@@ -142,7 +150,8 @@ def get_stock():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM stock')
     stock = cursor.fetchall()
-    return {"stock": stock}
+    conn.close()
+    return {"stock": [dict(zip([col[0] for col in cursor.description], row)) for row in stock]}
 
 # Client endpoints
 @app.post("/clients/")
@@ -151,9 +160,10 @@ def add_client(client: Client):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO clients (name, email, phone)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (client.name, client.email, client.phone))
     conn.commit()
+    conn.close()
     return {"message": "Client added successfully"}
 
 @app.get("/clients/")
@@ -162,7 +172,8 @@ def get_clients():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM clients')
     clients = cursor.fetchall()
-    return {"clients": clients}
+    conn.close()
+    return {"clients": [dict(zip([col[0] for col in cursor.description], row)) for row in clients]}
 
 # Run the application
 if __name__ == "__main__":
